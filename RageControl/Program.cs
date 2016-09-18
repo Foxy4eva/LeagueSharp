@@ -33,7 +33,8 @@ namespace RageControl
         static List<string> _whiteList = new List<string> { "cass", "afk", "faker", "Faker", "/msg", "/w", "dragon", "baron", "lag" };
         static List<Obj_AI_Hero> AllPlayers;
         static List<string> BannedPlayers = new List<string>();
-
+        static string _blackListFilePath = SandboxConfig.DataDirectory + "blackListRC.txt";
+        static string _whileListFilePath = SandboxConfig.DataDirectory + "whiteListRC.txt";
         public static void Main(string[] args)
         {
             CustomEvents.Game.OnGameLoad += Game_OnGameLoad;
@@ -189,15 +190,17 @@ namespace RageControl
             string line;
             try
             {
-                var file = new StreamReader(path + "blackListRC.txt");
-                while ((line = file.ReadLine()) != null)
+                using (var file = new StreamReader(path + "blackListRC.txt"))
                 {
-                    if (line.StartsWith("#"))
-                        continue;
-                    _badWords.Add(line);
+                    while ((line = file.ReadLine()) != null)
+                    {
+                        if (line.StartsWith("#"))
+                            continue;
+                        _badWords.Add(line);
+                    }
+                    line = string.Empty;
+                    Notifications.AddNotification(new Notification("BlackList loaded", 1000).SetBoxColor(Color.WhiteSmoke).SetTextColor(Color.Green));
                 }
-                line = string.Empty;
-                Notifications.AddNotification(new Notification("BlackList loaded",1000).SetBoxColor(Color.WhiteSmoke).SetTextColor(Color.Green));
             }
             catch (Exception e)
             {
@@ -205,15 +208,17 @@ namespace RageControl
             }
             try
             {
-                var file = new StreamReader(path + "whiteListRC.txt");
-                while ((line = file.ReadLine()) != null)
+                using (var file = new StreamReader(path + "whiteListRC.txt"))
                 {
-                    if (line.StartsWith("#"))
-                        continue;
-                    _whiteList.Add(line);
+                    while ((line = file.ReadLine()) != null)
+                    {
+                        if (line.StartsWith("#"))
+                            continue;
+                        _whiteList.Add(line);
+                    }
+                    line = string.Empty;
+                    Notifications.AddNotification(new Notification("WhiteList loaded", 1000).SetBoxColor(Color.WhiteSmoke).SetTextColor(Color.Green));
                 }
-                line = string.Empty;
-                Notifications.AddNotification(new Notification("WhiteList loaded",1000).SetBoxColor(Color.WhiteSmoke).SetTextColor(Color.Green));
             }
             catch (Exception e)
             {
@@ -261,6 +266,40 @@ namespace RageControl
                 args.Process = true;
                 break;
             }
+            //commands: .add curseword1 curseword2 .addw whiteword
+            if (args.Input.Contains(".addw"))
+            {
+                args.Process = false;
+                var array = args.Input.Split(' ');
+                if ((array.Length == 0 || array.Length == 1))
+                    Notifications.AddNotification(new Notification("Bad command"));
+                else
+                {
+                    for (int i = 1; i<array.Length; i++)
+                    {
+                        _whiteList.Add(array[i]);
+                        Notifications.AddNotification(new Notification(array[i] +" added to White List", 2000).SetBoxColor(Color.Green).SetBoxColor(Color.White));
+                        AppendToFile(_whileListFilePath, array[i]);
+                    }
+                }
+
+            }
+            else if (args.Input.Contains(".add"))
+            {
+                args.Process = false;
+                var array = args.Input.Split(' ');
+                if ((array.Length == 0 || array.Length == 1))
+                    Notifications.AddNotification(new Notification("Bad command"));
+                else
+                {
+                    for (int i = 1; i < array.Length; i++)
+                    {
+                        _badWords.Add(array[i]);
+                        Notifications.AddNotification(new Notification(array[i] + " added to Blocked Words", 2000).SetBoxColor(Color.Green).SetBoxColor(Color.Black));
+                        AppendToFile(_blackListFilePath, array[i]);
+                    }
+                }
+            }
             if (args.Process == false)
             {
                 Notifications.AddNotification(
@@ -284,13 +323,53 @@ namespace RageControl
                 {
                     Notifications.AddNotification(new Notification(CurseWarnPunish, 1000 * (_curseCount * 15)).SetBoxColor(Color.Black).SetTextColor(Color.Red));
                     _isPunished = true;
-                    var stfu = new Timer {Interval = 1000*(_curseCount*10), Enabled = true, AutoReset = false};
+                    var stfu = new Timer {Interval = 1000*(_curseCount*15), Enabled = true, AutoReset = false};
                     _startTime = DateTime.Now;
                     stfu.Start();
                     stfu.Elapsed += stfu_Elapsed;
                 }
             }
         }
+
+        private static void AppendToFile(string word, string filepath)
+        {
+            bool blackFlag = false;
+            if (filepath.Contains("black"))
+                blackFlag = true;
+            if (File.Exists(filepath))
+                using (var appender = new StreamWriter(filepath, true))
+                {
+                    appender.WriteLine("#User's word below:");
+                    appender.WriteLine(word);
+                }
+            else
+            {
+                using (var creator = new StreamWriter(filepath, true))
+                {
+                    creator.WriteLine("#File created by the program.");
+                    creator.WriteLine("#File is autoloaded by the program on start. Add own words below. Use # to comment, those lines will be skipped");
+                    if (blackFlag)
+                    {
+                        foreach (string smtg in _badWords)
+                        {
+                            creator.WriteLine(smtg);
+                        }
+                        creator.WriteLine("#end of program generated list");
+                    }
+                    else
+                    { 
+                    foreach(string smtg in _badWords)
+                        {
+                        creator.WriteLine(smtg);
+                    }
+                    creator.WriteLine("#end of program generated list");
+
+                }
+                }
+            }
+
+        }
+
         private static string TimeLeft(DateTime start)
         {
             var timeLeft = start.AddSeconds(1000 * (_curseCount * 10)) - DateTime.Now;

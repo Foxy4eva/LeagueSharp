@@ -11,3 +11,4 @@ C:\Users\Kula\Documents\Visual Studio 2012\Projects\RageControl\RageControl\bin\
 C:\Users\Kula\Documents\Visual Studio 2012\Projects\RageControl\RageControl\bin\Release\LeagueSharp.xml
 C:\Users\Kula\Documents\Visual Studio 2012\Projects\RageControl\RageControl\obj\Debug\RageControl.exe
 C:\Users\Kula\Documents\Visual Studio 2012\Projects\RageControl\RageControl\obj\Debug\RageControl.pdb
+C:\Users\LoLGod\Source\Repos\LeagueSharp\RageControl\bin\Release\RageControl.exe.config
