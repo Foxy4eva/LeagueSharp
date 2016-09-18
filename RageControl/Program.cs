@@ -35,6 +35,8 @@ namespace RageControl
         static List<string> BannedPlayers = new List<string>();
         static string _blackListFilePath = SandboxConfig.DataDirectory + "blackListRC.txt";
         static string _whileListFilePath = SandboxConfig.DataDirectory + "whiteListRC.txt";
+        static Timer enableTimer = null;
+
         public static void Main(string[] args)
         {
             CustomEvents.Game.OnGameLoad += Game_OnGameLoad;
@@ -75,6 +77,8 @@ namespace RageControl
             bannedPlayers.AddItem(new MenuItem("allban", "Ban all players? :S").SetValue(false).DontSave());
             Game.OnInput += Game_OnInput;
             Game.OnChat += Game_OnChat;
+            Notifications.AddNotification(SandboxConfig.ConfigDirectory.ToString(), 10000);
+            Notifications.AddNotification(_blackListFilePath,10000);
         }
 
         private static void PermaDissable(object sender, OnValueChangeEventArgs e)
@@ -275,10 +279,10 @@ namespace RageControl
                     Notifications.AddNotification(new Notification("Bad command"));
                 else
                 {
-                    for (int i = 1; i<array.Length; i++)
+                    for (int i = 1; i < array.Length; i++)
                     {
                         _whiteList.Add(array[i]);
-                        Notifications.AddNotification(new Notification(array[i] +" added to White List", 2000).SetBoxColor(Color.Green).SetBoxColor(Color.White));
+                        Notifications.AddNotification(new Notification(array[i] + " added to White List", 2000).SetBoxColor(Color.Green).SetBoxColor(Color.White));
                         AppendToFile(_whileListFilePath, array[i]);
                     }
                 }
@@ -297,6 +301,46 @@ namespace RageControl
                         _badWords.Add(array[i]);
                         Notifications.AddNotification(new Notification(array[i] + " added to Blocked Words", 2000).SetBoxColor(Color.Green).SetBoxColor(Color.Black));
                         AppendToFile(_blackListFilePath, array[i]);
+                    }
+                }
+            }
+            else if (args.Input.Contains(".rm"))
+            {
+                args.Process = false;
+                var array = args.Input.Split(' ');
+                if ((array.Length == 0 || array.Length == 1))
+                    Notifications.AddNotification(new Notification("Bad command"));
+                else
+                {
+                    for (int i = 1; i < array.Length; i++)
+                    {
+                        if (_badWords.Remove(array[i]))
+                        {
+                            Notifications.AddNotification(new Notification(array[i] + " removed from Blocked Words", 2000).SetBoxColor(Color.Green).SetBoxColor(Color.Black));
+                            AppendToFile(_blackListFilePath, array[i], true);
+                        }
+                        else
+                            Notifications.AddNotification(new Notification(array[i] + " not found in Black Words", 2000).SetBoxColor(Color.Green).SetBoxColor(Color.Black));
+                    }
+                }
+            }
+            else if (args.Input.Contains(".rmw"))
+            {
+                args.Process = false;
+                var array = args.Input.Split(' ');
+                if ((array.Length == 0 || array.Length == 1))
+                    Notifications.AddNotification(new Notification("Bad command"));
+                else
+                {
+                    for (int i = 1; i < array.Length; i++)
+                    {
+                        if (_whiteList.Remove(array[i]))
+                        {
+                            Notifications.AddNotification(new Notification(array[i] + " removed from White Words", 2000).SetBoxColor(Color.DarkGreen).SetBoxColor(Color.White));
+                            AppendToFile(_blackListFilePath, array[i], true);
+                        }
+                        else
+                            Notifications.AddNotification(new Notification(array[i] + " not found in White Words", 2000).SetBoxColor(Color.Red).SetBoxColor(Color.White));
                     }
                 }
             }
@@ -331,11 +375,49 @@ namespace RageControl
             }
         }
 
-        private static void AppendToFile(string word, string filepath)
+        private static void AppendToFile(string word, string filepath, bool remove = false)
         {
             bool blackFlag = false;
             if (filepath.Contains("black"))
                 blackFlag = true;
+            if (remove)
+            {
+                if (blackFlag)
+                    using (var ReadToMemory = new StreamReader(_blackListFilePath))
+                    {
+                        var ListBuffer = new List<string>();
+                        string line;
+                        while ((line = ReadToMemory.ReadLine()) != null)
+                        {
+                            ListBuffer.Add(line);
+                        }
+                        ListBuffer.Remove(word);
+                        using (var writeBack = new StreamWriter(_blackListFilePath))
+                        {
+                            foreach (var item in ListBuffer)
+                                writeBack.WriteLine(item);
+                        }
+                        ListBuffer = null;
+                    }
+                else
+                using (var ReadToMemory = new StreamReader(_whileListFilePath))
+                {
+                    var ListBuffer = new List<string>();
+                    string line;
+                    while ((line = ReadToMemory.ReadLine()) != null)
+                    {
+                        ListBuffer.Add(line);
+                    }
+                    ListBuffer.Remove(word);
+                    using (var writeBack = new StreamWriter(_whileListFilePath))
+                    {
+                        foreach (var item in ListBuffer)
+                            writeBack.WriteLine(item);
+                    }
+                    ListBuffer = null;
+                }
+                return;
+            }
             if (File.Exists(filepath))
                 using (var appender = new StreamWriter(filepath, true))
                 {
@@ -357,17 +439,16 @@ namespace RageControl
                         creator.WriteLine("#end of program generated list");
                     }
                     else
-                    { 
-                    foreach(string smtg in _badWords)
+                    {
+                        foreach (string smtg in _badWords)
                         {
-                        creator.WriteLine(smtg);
-                    }
-                    creator.WriteLine("#end of program generated list");
+                            creator.WriteLine(smtg);
+                        }
+                        creator.WriteLine("#end of program generated list");
 
-                }
+                    }
                 }
             }
-
         }
 
         private static string TimeLeft(DateTime start)
@@ -390,12 +471,20 @@ namespace RageControl
             }
             else if (_main.Item("disable").GetValue<bool>())
             {
-                var enableTimer = new System.Timers.Timer(30000);
-                Notifications.AddNotification(new Notification("Your chat will be enabled in 20 sec", 2000).SetTextColor(Color.Green).SetBoxColor(Color.Black));
-                enableTimer.Enabled = true;
-                enableTimer.Start();
-                enableTimer.Elapsed += enableTimer_Elapsed;
-            }
+                if (enableTimer == null)
+                {
+                    enableTimer = new Timer(30000);
+                    Notifications.AddNotification(new Notification("Your chat will be enabled in 20 sec", 2000).SetTextColor(Color.Green).SetBoxColor(Color.Black));
+                    enableTimer.Enabled = true;
+                    enableTimer.Start();
+                    enableTimer.Elapsed += enableTimer_Elapsed;
+                }
+                else
+                {
+                    Notifications.AddNotification(new Notification("Chat alreay dissabled", 2000).SetTextColor(Color.Red));
+                    _main.Item("disable").SetValue<bool>(false);
+                }
+                }
             else
             {
                 Notifications.AddNotification(new Notification("Ayee!!error detected! Tell Foxy ASAP! ERROR CODE: -2").SetTextColor(Color.White).SetBoxColor(Color.Blue));
@@ -407,6 +496,7 @@ namespace RageControl
         {
             Notifications.AddNotification(new Notification("Enabled :)", 2000).SetBorderColor(Color.Green).SetBoxColor(Color.Black).SetTextColor(Color.Green));
             _isDissabled = false;
+            enableTimer = null;
         }
         #endregion
 
